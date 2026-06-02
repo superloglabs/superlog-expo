@@ -6,21 +6,37 @@ import {
 import { compactAttributes } from "../domain/attributes.js";
 import { readExpoMetadata } from "../infrastructure/expo-metadata.js";
 import { OTelTransport } from "../infrastructure/otel/transport.js";
+import {
+  installAutomaticInstrumentation,
+  type AutomaticInstrumentationOptions,
+  type InstalledInstrumentation,
+} from "./automatic-instrumentation.js";
 
 export type InitSuperlogOptions = Omit<SuperlogConfig, "token"> & {
   /** @deprecated Use token. */
   dsn?: string;
   endpoint?: string;
   token?: string;
+  autoInstrument?: boolean;
+  autoTrackConsole?: boolean;
+  autoTrackErrors?: boolean;
+  autoTrackFetch?: boolean;
+  ignoredFetchUrls?: AutomaticInstrumentationOptions["ignoredFetchUrls"];
   useExpoMetadata?: boolean;
 };
 
 let defaultClient: SuperlogClient | null = null;
+let installedInstrumentation: InstalledInstrumentation | null = null;
 
 export async function initSuperlog(options: InitSuperlogOptions): Promise<SuperlogClient> {
   const {
+    autoInstrument = true,
+    autoTrackConsole = true,
+    autoTrackErrors = true,
+    autoTrackFetch = true,
     dsn,
     endpoint,
+    ignoredFetchUrls,
     token: providedToken,
     useExpoMetadata,
     ...configOptions
@@ -33,10 +49,12 @@ export async function initSuperlog(options: InitSuperlogOptions): Promise<Superl
     ...configOptions,
     token,
     release: configOptions.release ?? metadata?.release,
-    dist: configOptions.dist,
+    dist: configOptions.dist ?? metadata?.dist,
+    gitSha: configOptions.gitSha ?? metadata?.gitSha,
     runtimeVersion: configOptions.runtimeVersion ?? metadata?.runtimeVersion,
     expoUpdateId: configOptions.expoUpdateId ?? metadata?.updateId,
     expoUpdateGroupId: configOptions.expoUpdateGroupId ?? metadata?.updateGroupId,
+    platform: configOptions.platform ?? metadata?.platform,
     extraResourceAttributes: {
       ...metadata?.attributes,
       ...configOptions.extraResourceAttributes,
@@ -49,6 +67,21 @@ export async function initSuperlog(options: InitSuperlogOptions): Promise<Superl
     resourceAttributes: compactAttributes(superlogTelemetryAttributes(config)),
   });
   defaultClient = new SuperlogClient({ config, transport });
+  installedInstrumentation?.uninstall();
+  installedInstrumentation = null;
+  if (autoInstrument) {
+    const instrumentation = installAutomaticInstrumentation(defaultClient, {
+      console: autoTrackConsole,
+      errors: autoTrackErrors,
+      fetch: autoTrackFetch,
+      ignoredFetchUrls: [endpoint ?? "https://intake.superlog.sh", ...(ignoredFetchUrls ?? [])],
+    });
+    installedInstrumentation = instrumentation;
+    defaultClient.addTeardown(() => {
+      instrumentation.uninstall();
+      if (installedInstrumentation === instrumentation) installedInstrumentation = null;
+    });
+  }
   return defaultClient;
 }
 

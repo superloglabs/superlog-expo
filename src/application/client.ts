@@ -31,6 +31,7 @@ export class SuperlogClient {
   private activeSpans: SpanHandle[] = [];
   private contextAttributes: Attributes = {};
   private currentRoute: string | null = null;
+  private teardownCallbacks: Array<() => void> = [];
 
   constructor(private readonly options: SuperlogClientOptions) {
     this.sessionId = options.sessionIdFactory?.() ?? createSessionId();
@@ -128,8 +129,13 @@ export class SuperlogClient {
     return this.options.transport.flush?.() ?? Promise.resolve();
   }
 
-  shutdown(): Promise<void> {
-    return this.options.transport.shutdown?.() ?? Promise.resolve();
+  addTeardown(callback: () => void): void {
+    this.teardownCallbacks.push(callback);
+  }
+
+  async shutdown(): Promise<void> {
+    for (const callback of this.teardownCallbacks.splice(0).reverse()) callback();
+    await (this.options.transport.shutdown?.() ?? Promise.resolve());
   }
 
   private currentSpan(): SpanHandle | undefined {

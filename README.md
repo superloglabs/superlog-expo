@@ -2,12 +2,14 @@
 
 OpenTelemetry-based observability SDK for Expo and React Native apps.
 
-This package is in early development. It currently provides:
+This package is in early development. It provides:
 
 - OTLP trace and log export to Superlog
-- stable `session.id` on spans, logs, and exceptions
+- stable `session.id` on spans, logs, exceptions, navigation, console, and fetch telemetry
 - automatic Expo Router navigation telemetry
-- manual trace, log, and exception APIs
+- automatic global error tracking
+- automatic console interception
+- automatic fetch/network spans
 - Expo app/update/runtime metadata
 - source map discovery and upload tooling for Superlog symbolication
 
@@ -27,9 +29,7 @@ The package expects these peer dependencies from a normal Expo app:
 
 ## Configure
 
-Wrap your root layout once. The SDK creates a stable session id for the app
-process and tracks Expo Router pathname changes automatically when
-`expo-router` is installed.
+Wrap your root layout once. Everything else is automatic.
 
 ```tsx
 import { Slot } from "expo-router";
@@ -39,12 +39,7 @@ export default function RootLayout() {
   return (
     <SuperlogProvider
       token={process.env.EXPO_PUBLIC_SUPERLOG_TOKEN!}
-      endpoint={process.env.EXPO_PUBLIC_SUPERLOG_ENDPOINT ?? "https://intake.superlog.sh"}
       serviceName="my-expo-app"
-      environment={process.env.EXPO_PUBLIC_SUPERLOG_ENVIRONMENT ?? "production"}
-      release={process.env.EXPO_PUBLIC_SUPERLOG_RELEASE}
-      dist={process.env.EXPO_PUBLIC_SUPERLOG_DIST}
-      gitSha={process.env.EXPO_PUBLIC_GIT_SHA}
     >
       <Slot />
     </SuperlogProvider>
@@ -54,19 +49,102 @@ export default function RootLayout() {
 
 `token` is your Superlog public token, for example `sl_public_...`.
 
-If `release` is omitted, the SDK tries to infer one from Expo config as
-`<slug>@<version>[+<build>]`. For source map symbolication, explicitly setting
-`EXPO_PUBLIC_SUPERLOG_RELEASE` is safer because your upload command can use the
-same value.
+By default the SDK automatically:
 
-## Capture Telemetry
+- creates and attaches one stable `session.id`
+- infers `release` from Expo config as `<slug>@<version>[+<build>]`
+- infers `dist` from `expo-updates` update id, falling back to `embedded`
+- reads runtime/update metadata from `expo-updates`
+- reads platform from React Native `Platform.OS`
+- reads git SHA from `EXPO_PUBLIC_GIT_SHA`, `EXPO_PUBLIC_SUPERLOG_GIT_SHA`, or `EAS_BUILD_GIT_COMMIT_HASH` when available
+- tracks Expo Router pathnames when `expo-router` is installed
+- captures global errors, console calls, and fetch requests
 
-Use the top-level helpers anywhere after the provider has initialized.
+### Optional Overrides
+
+Pass these only when you need to override the automatic values or disable a
+specific automatic integration.
+
+```tsx
+<SuperlogProvider
+  token={process.env.EXPO_PUBLIC_SUPERLOG_TOKEN!}
+  serviceName="my-expo-app"
+  endpoint="https://intake.superlog.sh"
+  environment="production"
+  release="my-expo-app@1.2.3"
+  dist="production-20260602"
+  gitSha="abc123"
+  autoTrackRoutes={false}
+  autoTrackErrors={false}
+  autoTrackConsole={false}
+  autoTrackFetch={false}
+/>
+```
+
+For source map symbolication, the upload command must use the same `release`,
+`dist`, and `platform` values as runtime telemetry. The automatic runtime values
+are usually enough, but explicit overrides are useful when your release pipeline
+already has canonical build metadata.
+
+## Automatic Telemetry
+
+### Sessions
+
+Every SDK instance creates one stable session id for the app process. The SDK
+adds `session.id` to every span, log, exception, route change, console event,
+and fetch event. You do not need to set it yourself.
+
+### Navigation
+
+When `expo-router` is installed, `SuperlogProvider` tracks pathname changes by
+default. Route changes emit a `navigation.route` span and log with:
+
+- `route.name`
+- `navigation.from`
+- `navigation.to`
+- `session.id`
+
+### Errors
+
+Global errors are captured automatically from browser-style `error` and
+`unhandledrejection` events when available, plus React Native `ErrorUtils`.
+Manual `captureException` is still useful inside known app workflows where you
+want to attach extra context.
+
+### Console
+
+`console.log`, `console.info`, `console.warn`, `console.debug`, and
+`console.error` are logged automatically. `console.error` with an `Error`
+argument is captured as an exception.
+
+### Fetch
+
+`fetch` requests create `http.client` spans automatically. Completed requests
+emit status and duration attributes. Failed requests are captured as exceptions
+on the active fetch span. Requests to the Superlog intake endpoint are ignored
+to avoid telemetry loops.
+
+## App Context
+
+The only common manual setup is the user id after sign-in.
 
 ```ts
-import { captureException, log, setSuperlogUser, trace } from "@superlog/expo";
+import { setSuperlogContext, setSuperlogUser } from "@superlog/expo";
 
 setSuperlogUser(userId);
+setSuperlogContext({ "tenant.id": tenantId, "feature.flag": "checkout-v2" });
+```
+
+Passing `null` to `setSuperlogUser` clears the user id. Context values are
+merged into later telemetry.
+
+## Manual Telemetry
+
+Use helpers when you want explicit spans or extra error context around an app
+workflow.
+
+```ts
+import { captureException, log, trace } from "@superlog/expo";
 
 await trace("chat.send", async () => {
   log("chat_send_started", "info", { "chat.id": chatId });
@@ -87,44 +165,6 @@ attached to the active span context.
 `exception.message`, and `exception.stacktrace`. If no span is active, it also
 creates a short `exception` span so the error has trace context.
 
-## Session And Context
-
-Every SDK instance creates one stable session id for the process lifetime. The
-SDK adds `session.id` to every span, log, and exception. Expo Router route
-changes also emit `navigation.route` spans and logs with `route.name`,
-`navigation.from`, and `navigation.to`.
-
-```ts
-import { setSuperlogContext, setSuperlogUser } from "@superlog/expo";
-
-setSuperlogUser(userId);
-setSuperlogContext({ "tenant.id": tenantId, "feature.flag": "checkout-v2" });
-```
-
-Passing `null` to `setSuperlogUser` clears the user id.
-
-## Expo Router
-
-`SuperlogProvider` auto-tracks Expo Router pathnames by default. If you need to
-disable that, pass `autoTrackRoutes={false}`.
-
-For a custom setup that initializes the client manually, mount the route
-instrumentation yourself after the SDK has been initialized.
-
-```tsx
-import { Slot } from "expo-router";
-import { SuperlogExpoRouterInstrumentation } from "@superlog/expo/expo-router";
-
-export default function RootLayout() {
-  return (
-    <>
-      <SuperlogExpoRouterInstrumentation />
-      <Slot />
-    </>
-  );
-}
-```
-
 ## Source Maps
 
 Build/export your app with source maps, then upload the generated `.map` files.
@@ -138,8 +178,8 @@ npx expo export --platform web --output-dir dist --dump-sourcemap
 Upload with the same release and optional dist that your app emits at runtime:
 
 ```sh
-export EXPO_PUBLIC_SUPERLOG_RELEASE=my-expo-app@1.2.3
-export EXPO_PUBLIC_SUPERLOG_DIST=production-20260602 # optional
+export SUPERLOG_RELEASE=my-expo-app@1.2.3
+export SUPERLOG_DIST=production-20260602 # optional
 
 SUPERLOG_TOKEN=sl_public_... npx superlog-expo sourcemaps upload \
   --dir dist \
@@ -213,14 +253,11 @@ If source maps upload but stacks remain minified:
 - confirm the stack frame bundle filename exists in the uploaded artifact list
 - confirm the API can read source map objects from storage
 
-If no trace id appears on a log, make sure the log is emitted inside `trace(...)`
-or pass through an active SDK span. Logs outside a span still include
-`session.id`, and route changes tracked by the provider emit trace context
-automatically.
+If no trace id appears on a custom log, make sure the log is emitted inside
+`trace(...)` or pass through an active SDK span. Logs outside a span still
+include `session.id`; automatic navigation and fetch telemetry emit trace
+context by default.
 
 ## Current Limitations
 
-- no automatic global error handler yet
-- no automatic console interception yet
-- no automatic fetch/network instrumentation yet
 - source map upload depends on Superlog's source-map API being enabled

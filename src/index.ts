@@ -1,6 +1,7 @@
 export { SuperlogClient } from "./application/client.js";
 export { discoverSourceMaps, uploadSourceMap } from "./application/sourcemap-upload.js";
 export type { InitSuperlogOptions } from "./interfaces/init.js";
+export type { AutomaticInstrumentationOptions } from "./interfaces/automatic-instrumentation.js";
 export {
   captureException,
   getSuperlog,

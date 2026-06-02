@@ -19,12 +19,14 @@ export function SuperlogProvider({
 
   useEffect(() => {
     let cancelled = false;
+    let activeClient: SuperlogClient | null = null;
     void initSuperlog(options)
       .then((nextClient) => {
         if (cancelled) {
           void nextClient.shutdown();
           return;
         }
+        activeClient = nextClient;
         setClient(nextClient);
       })
       .catch((error: unknown) => {
@@ -33,9 +35,14 @@ export function SuperlogProvider({
 
     return () => {
       cancelled = true;
+      void activeClient?.shutdown();
       setClient(null);
     };
   }, [
+    options.autoInstrument,
+    options.autoTrackConsole,
+    options.autoTrackErrors,
+    options.autoTrackFetch,
     options.dist,
     options.dsn,
     options.endpoint,
@@ -44,6 +51,7 @@ export function SuperlogProvider({
     options.expoUpdateId,
     options.extraResourceAttributes,
     options.gitSha,
+    options.ignoredFetchUrls,
     options.platform,
     options.release,
     options.runtimeVersion,

@@ -39,7 +39,7 @@
     }
   },
   "bin": {
-    "superlog-expo": "./bin/superlog-expo.js"
+    "superlog-expo": "bin/superlog-expo.js"
   },
   "files": [
     "bin",

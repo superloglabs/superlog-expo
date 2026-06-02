@@ -257,7 +257,3 @@ If no trace id appears on a custom log, make sure the log is emitted inside
 `trace(...)` or pass through an active SDK span. Logs outside a span still
 include `session.id`; automatic navigation and fetch telemetry emit trace
 context by default.
-
-## Current Limitations
-
-- source map upload depends on Superlog's source-map API being enabled

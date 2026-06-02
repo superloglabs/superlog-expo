@@ -1,8 +1,17 @@
 {
   "name": "@superlog/expo",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenTelemetry-based observability SDK for Expo and React Native apps.",
   "type": "module",
+  "homepage": "https://github.com/superloglabs/superlog-expo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/superloglabs/superlog-expo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/superloglabs/superlog-expo/issues"
+  },
+  "author": "Superlog",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,

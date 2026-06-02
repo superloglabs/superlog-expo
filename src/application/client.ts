@@ -170,7 +170,7 @@ export function superlogTelemetryAttributes(
     "expo.update_group_id": config.expoUpdateGroupId,
     "device.platform": config.platform,
     "superlog.sdk.name": "@superlog/expo",
-    "superlog.sdk.version": "0.0.0",
+    "superlog.sdk.version": "0.1.0",
     ...attributes,
   };
 }

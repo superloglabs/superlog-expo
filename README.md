@@ -257,3 +257,18 @@ If no trace id appears on a custom log, make sure the log is emitted inside
 `trace(...)` or pass through an active SDK span. Logs outside a span still
 include `session.id`; automatic navigation and fetch telemetry emit trace
 context by default.
+
+## Contributing
+
+Source lives at
+[github.com/superloglabs/superlog-expo](https://github.com/superloglabs/superlog-expo).
+Run the test suite and type/build checks with:
+
+```sh
+npm install
+npm run check   # test + typecheck + build
+```
+
+## License
+
+MIT © Superlog

@@ -1,0 +1,93 @@
+{
+  "name": "@superlog/expo",
+  "version": "0.0.0",
+  "description": "OpenTelemetry-based observability SDK for Expo and React Native apps.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "react-native": "./dist/index.js",
+      "browser": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./expo-router": {
+      "types": "./dist/expo-router.d.ts",
+      "react-native": "./dist/expo-router.js",
+      "browser": "./dist/expo-router.js",
+      "import": "./dist/expo-router.js",
+      "default": "./dist/expo-router.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "react-native": "./dist/testing.js",
+      "browser": "./dist/testing.js",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
+    }
+  },
+  "bin": {
+    "superlog-expo": "./bin/superlog-expo.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "npm test && npm run typecheck && npm run build",
+    "prepack": "npm run build",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "expo",
+    "react-native",
+    "opentelemetry",
+    "otlp",
+    "observability",
+    "superlog"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/resources": "^2.7.1",
+    "@opentelemetry/sdk-logs": "^0.218.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@opentelemetry/sdk-trace-web": "^2.7.1"
+  },
+  "peerDependencies": {
+    "expo-constants": ">=18",
+    "expo-router": ">=6",
+    "expo-updates": ">=28",
+    "react": ">=19",
+    "react-native": ">=0.81"
+  },
+  "peerDependenciesMeta": {
+    "expo-router": {
+      "optional": true
+    },
+    "expo-updates": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2"
+  }
+}

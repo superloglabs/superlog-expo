@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { SuperlogClient } from "../application/client.js";
 import { getSuperlog } from "./init.js";
 
 type ExpoRouterModule = {
@@ -7,16 +8,18 @@ type ExpoRouterModule = {
 
 let expoRouterModule: ExpoRouterModule | null | false = null;
 
-export function SuperlogExpoRouterInstrumentation(): null {
+export type SuperlogExpoRouterInstrumentationProps = {
+  client?: SuperlogClient;
+};
+
+export function SuperlogExpoRouterInstrumentation({
+  client,
+}: SuperlogExpoRouterInstrumentationProps = {}): null {
   const pathname = useOptionalPathname();
   useEffect(() => {
     if (!pathname) return;
-    const client = getSuperlog();
-    client.setRoute(pathname);
-    void client.trace("navigation.route", () => {
-      client.log("navigation.route", "info", { "route.name": pathname });
-    });
-  }, [pathname]);
+    void (client ?? getSuperlog()).recordNavigation(pathname);
+  }, [client, pathname]);
   return null;
 }
 

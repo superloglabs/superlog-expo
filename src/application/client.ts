@@ -3,7 +3,7 @@ import { createSessionId, type SessionIdFactory } from "../domain/session.js";
 import type { Severity, SpanHandle, TelemetryTransport } from "./transport.js";
 
 export type SuperlogConfig = {
-  dsn: string;
+  token: string;
   serviceName: string;
   environment?: string;
   release?: string;
@@ -30,6 +30,7 @@ export class SuperlogClient {
   readonly sessionId: string;
   private activeSpans: SpanHandle[] = [];
   private contextAttributes: Attributes = {};
+  private currentRoute: string | null = null;
 
   constructor(private readonly options: SuperlogClientOptions) {
     this.sessionId = options.sessionIdFactory?.() ?? createSessionId();
@@ -44,6 +45,22 @@ export class SuperlogClient {
   setRoute(route: string | null): void {
     this.setContext({
       "route.name": route ?? undefined,
+    });
+  }
+
+  async recordNavigation(route: string): Promise<void> {
+    const previousRoute = this.currentRoute;
+    this.currentRoute = route;
+    this.setContext({
+      "route.name": route,
+      "navigation.previous_route": previousRoute ?? undefined,
+    });
+    await this.trace("navigation.route", async () => {
+      this.log("navigation.route", "info", {
+        "route.name": route,
+        "navigation.to": route,
+        "navigation.from": previousRoute ?? undefined,
+      });
     });
   }
 

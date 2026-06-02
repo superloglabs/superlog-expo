@@ -7,7 +7,7 @@ function makeClient() {
   const transport = new FakeTransport();
   const client = new SuperlogClient({
     config: {
-      dsn: "sl_public_test",
+      token: "sl_public_test",
       serviceName: "expo-test",
       environment: "test",
       release: "1.0.0",
@@ -42,7 +42,7 @@ test("configured source map identity wins over Expo metadata resource attrs", ()
   const transport = new FakeTransport();
   const client = new SuperlogClient({
     config: {
-      dsn: "sl_public_test",
+      token: "sl_public_test",
       serviceName: "expo-test",
       release: "expo-test-2@local",
       dist: "web-local",
@@ -77,6 +77,21 @@ test("trace correlates nested logs to the active span", async () => {
   assert.equal(transport.logs[0]?.activeSpan?.id, "span-1");
   assert.equal(transport.spans[0]?.ended, true);
   assert.equal(transport.spans[0]?.endAttributes?.["span.status"], "ok");
+});
+
+test("recordNavigation tracks route changes by session", async () => {
+  const { client, transport } = makeClient();
+
+  await client.recordNavigation("/");
+  await client.recordNavigation("/chat/123");
+
+  assert.equal(transport.spans.length, 2);
+  assert.equal(transport.logs.length, 2);
+  assert.equal(transport.logs[1]?.attributes["navigation.from"], "/");
+  assert.equal(transport.logs[1]?.attributes["navigation.to"], "/chat/123");
+  assert.equal(transport.logs[1]?.attributes["route.name"], "/chat/123");
+  assert.equal(transport.logs[1]?.attributes["session.id"], "ses_test");
+  assert.equal(transport.logs[1]?.activeSpan?.id, "span-2");
 });
 
 test("captureException creates an error span when no span is active", () => {

@@ -18,7 +18,7 @@ import type { AttributeValue } from "../../domain/attributes.js";
 
 export type OTelTransportConfig = {
   endpoint: string;
-  dsn: string;
+  token: string;
   serviceName: string;
   resourceAttributes?: Record<string, AttributeValue>;
 };
@@ -31,7 +31,7 @@ export class OTelTransport implements TelemetryTransport {
 
   constructor(config: OTelTransportConfig) {
     const endpoint = config.endpoint.replace(/\/+$/, "");
-    const headers = { authorization: `Bearer ${config.dsn}` };
+    const headers = { authorization: `Bearer ${config.token}` };
     const resource = resourceFromAttributes({
       "service.name": config.serviceName,
       ...config.resourceAttributes,

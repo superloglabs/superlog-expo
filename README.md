@@ -6,9 +6,9 @@ This package is in early development. It currently provides:
 
 - OTLP trace and log export to Superlog
 - stable `session.id` on spans, logs, and exceptions
+- automatic Expo Router navigation telemetry
 - manual trace, log, and exception APIs
 - Expo app/update/runtime metadata
-- optional Expo Router route context
 - source map discovery and upload tooling for Superlog symbolication
 
 ## Install
@@ -27,28 +27,32 @@ The package expects these peer dependencies from a normal Expo app:
 
 ## Configure
 
-Initialize once near app startup. Keep the release value stable and use the same
-value when uploading source maps.
+Wrap your root layout once. The SDK creates a stable session id for the app
+process and tracks Expo Router pathname changes automatically when
+`expo-router` is installed.
 
-```ts
-import { initSuperlog, type SuperlogClient } from "@superlog/expo";
+```tsx
+import { Slot } from "expo-router";
+import { SuperlogProvider } from "@superlog/expo";
 
-let clientPromise: Promise<SuperlogClient> | null = null;
-
-export function ensureSuperlog(): Promise<SuperlogClient> {
-  clientPromise ??= initSuperlog({
-    dsn: process.env.EXPO_PUBLIC_SUPERLOG_DSN!,
-    endpoint: process.env.EXPO_PUBLIC_SUPERLOG_ENDPOINT ?? "https://intake.superlog.sh",
-    serviceName: "my-expo-app",
-    environment: process.env.EXPO_PUBLIC_SUPERLOG_ENVIRONMENT ?? "production",
-    release: process.env.EXPO_PUBLIC_SUPERLOG_RELEASE ?? "my-expo-app@1.2.3",
-    dist: process.env.EXPO_PUBLIC_SUPERLOG_DIST,
-    gitSha: process.env.EXPO_PUBLIC_GIT_SHA,
-    platform: process.env.EXPO_OS,
-  });
-  return clientPromise;
+export default function RootLayout() {
+  return (
+    <SuperlogProvider
+      token={process.env.EXPO_PUBLIC_SUPERLOG_TOKEN!}
+      endpoint={process.env.EXPO_PUBLIC_SUPERLOG_ENDPOINT ?? "https://intake.superlog.sh"}
+      serviceName="my-expo-app"
+      environment={process.env.EXPO_PUBLIC_SUPERLOG_ENVIRONMENT ?? "production"}
+      release={process.env.EXPO_PUBLIC_SUPERLOG_RELEASE}
+      dist={process.env.EXPO_PUBLIC_SUPERLOG_DIST}
+      gitSha={process.env.EXPO_PUBLIC_GIT_SHA}
+    >
+      <Slot />
+    </SuperlogProvider>
+  );
 }
 ```
+
+`token` is your Superlog public token, for example `sl_public_...`.
 
 If `release` is omitted, the SDK tries to infer one from Expo config as
 `<slug>@<version>[+<build>]`. For source map symbolication, explicitly setting
@@ -57,20 +61,22 @@ same value.
 
 ## Capture Telemetry
 
+Use the top-level helpers anywhere after the provider has initialized.
+
 ```ts
-import { getSuperlog } from "@superlog/expo";
+import { captureException, log, setSuperlogUser, trace } from "@superlog/expo";
 
-const superlog = getSuperlog();
+setSuperlogUser(userId);
 
-await superlog.trace("chat.send", async () => {
-  superlog.log("chat_send_started", "info", { "chat.id": chatId });
+await trace("chat.send", async () => {
+  log("chat_send_started", "info", { "chat.id": chatId });
   await sendMessage();
 });
 
 try {
   await loadThread();
 } catch (error) {
-  superlog.captureException(error, { component: "thread" });
+  captureException(error, { component: "thread" });
 }
 ```
 
@@ -84,21 +90,26 @@ creates a short `exception` span so the error has trace context.
 ## Session And Context
 
 Every SDK instance creates one stable session id for the process lifetime. The
-SDK adds `session.id` to every span, log, and exception.
+SDK adds `session.id` to every span, log, and exception. Expo Router route
+changes also emit `navigation.route` spans and logs with `route.name`,
+`navigation.from`, and `navigation.to`.
 
 ```ts
-superlog.setUser(userId);
-superlog.setContext({ "tenant.id": tenantId, "feature.flag": "checkout-v2" });
-superlog.setRoute("/chat/[threadId]");
+import { setSuperlogContext, setSuperlogUser } from "@superlog/expo";
+
+setSuperlogUser(userId);
+setSuperlogContext({ "tenant.id": tenantId, "feature.flag": "checkout-v2" });
 ```
 
-Context values are merged into later telemetry. Passing `null` to `setUser` or
-`setRoute` clears that key.
+Passing `null` to `setSuperlogUser` clears the user id.
 
 ## Expo Router
 
-If you use Expo Router, mount the route instrumentation after the SDK has been
-initialized.
+`SuperlogProvider` auto-tracks Expo Router pathnames by default. If you need to
+disable that, pass `autoTrackRoutes={false}`.
+
+For a custom setup that initializes the client manually, mount the route
+instrumentation yourself after the SDK has been initialized.
 
 ```tsx
 import { Slot } from "expo-router";
@@ -113,9 +124,6 @@ export default function RootLayout() {
   );
 }
 ```
-
-On pathname changes it sets `route.name`, emits a `navigation.route` log, and
-creates a short `navigation.route` span.
 
 ## Source Maps
 
@@ -175,15 +183,23 @@ stack frame, but exact release/dist/platform metadata is the intended path.
 
 ```ts
 import {
-  SuperlogClient,
+  SuperlogProvider,
+  captureException,
+  discoverSourceMaps,
   getSuperlog,
   initSuperlog,
-  discoverSourceMaps,
+  log,
+  setSuperlogContext,
+  setSuperlogUser,
+  trace,
   uploadSourceMap,
 } from "@superlog/expo";
 
 import { SuperlogExpoRouterInstrumentation } from "@superlog/expo/expo-router";
 ```
+
+`initSuperlog` and `getSuperlog` are available for apps that need explicit
+client lifecycle control. `dsn` is accepted as a deprecated alias for `token`.
 
 `@superlog/expo/testing` exports a fake transport for unit tests.
 
@@ -197,9 +213,10 @@ If source maps upload but stacks remain minified:
 - confirm the stack frame bundle filename exists in the uploaded artifact list
 - confirm the API can read source map objects from storage
 
-If no trace id appears on a log, make sure the log is emitted inside
-`superlog.trace(...)` or pass through an active SDK span. Logs outside a span
-still include `session.id`.
+If no trace id appears on a log, make sure the log is emitted inside `trace(...)`
+or pass through an active SDK span. Logs outside a span still include
+`session.id`, and route changes tracked by the provider emit trace context
+automatically.
 
 ## Current Limitations
 

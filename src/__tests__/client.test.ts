@@ -32,6 +32,8 @@ test("logs include stable session and release attributes", () => {
   assert.equal(transport.logs[0]?.attributes["session.id"], "ses_test");
   assert.equal(transport.logs[0]?.attributes["service.name"], "expo-test");
   assert.equal(transport.logs[0]?.attributes["service.version"], "1.0.0");
+  assert.equal(transport.logs[0]?.attributes.release, "1.0.0");
+  assert.equal(transport.logs[0]?.attributes.dist, "ios-sim");
   assert.equal(transport.logs[0]?.attributes["superlog.release"], "1.0.0");
   assert.equal(transport.logs[0]?.attributes["superlog.dist"], "ios-sim");
   assert.equal(transport.logs[0]?.attributes["vcs.ref.head.revision"], "abc123");

@@ -159,6 +159,8 @@ export function superlogTelemetryAttributes(
     ...config.extraResourceAttributes,
     "service.name": config.serviceName,
     "deployment.environment.name": config.environment,
+    release: config.release,
+    dist: config.dist,
     "service.version": config.release,
     "superlog.release": config.release,
     "superlog.dist": config.dist,

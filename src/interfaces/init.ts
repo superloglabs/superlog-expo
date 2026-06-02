@@ -49,7 +49,7 @@ export async function initSuperlog(options: InitSuperlogOptions): Promise<Superl
     ...configOptions,
     token,
     release: configOptions.release ?? metadata?.release,
-    dist: configOptions.dist ?? metadata?.dist,
+    dist: configOptions.dist ?? metadata?.dist ?? metadata?.updateId,
     gitSha: configOptions.gitSha ?? metadata?.gitSha,
     runtimeVersion: configOptions.runtimeVersion ?? metadata?.runtimeVersion,
     expoUpdateId: configOptions.expoUpdateId ?? metadata?.updateId,

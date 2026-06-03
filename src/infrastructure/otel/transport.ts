@@ -1,11 +1,12 @@
-import { context, SpanStatusCode, trace, type Span } from "@opentelemetry/api";
+import { context, propagation, SpanStatusCode, trace, type Context, type Span } from "@opentelemetry/api";
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
+import { StackContextManager, WebTracerProvider } from "@opentelemetry/sdk-trace-web";
 import type {
   ExceptionInput,
   LogInput,
@@ -48,7 +49,15 @@ export class OTelTransport implements TelemetryTransport {
         ),
       ],
     });
-    this.tracerProvider.register();
+    // Register a context manager so spans nest by OTel context (not a mutable
+    // stack) and a W3C propagator so traceparent/tracestate can be injected
+    // into outbound requests. StackContextManager is synchronous-correct; full
+    // cross-`await` propagation in React Native needs ZoneContextManager
+    // (zone.js), left to the host app to opt into.
+    this.tracerProvider.register({
+      contextManager: new StackContextManager(),
+      propagator: new W3CTraceContextPropagator(),
+    });
 
     this.loggerProvider = new LoggerProvider({
       resource,
@@ -133,6 +142,10 @@ class OTelSpanHandle implements SpanHandle {
     for (const [key, value] of Object.entries(attributes)) {
       if (value !== undefined) this.span.setAttribute(key, value);
     }
+  }
+
+  injectTraceContext(carrier: Record<string, string>): void {
+    propagation.inject(this.otelContext as Context, carrier);
   }
 
   end(attributes?: Record<string, AttributeValue | undefined>): void {

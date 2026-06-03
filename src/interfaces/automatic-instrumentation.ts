@@ -1,5 +1,5 @@
 import type { SuperlogClient } from "../application/client.js";
-import type { Severity } from "../application/transport.js";
+import type { Severity, SpanHandle } from "../application/transport.js";
 import type { Attributes } from "../domain/attributes.js";
 
 export type AutomaticInstrumentationOptions = {
@@ -167,9 +167,10 @@ function installFetchInstrumentation(
       "http.request.method": request.method,
     };
 
-    return client.trace("http.client", async () => {
+    return client.trace("http.client", async (span) => {
+      const nextInit = injectTraceContext(input, init, span);
       try {
-        const response = await originalFetch(input, init);
+        const response = await originalFetch(input, nextInit);
         client.log("fetch", "info", {
           ...attributes,
           "http.response.status_code": response.status,
@@ -189,6 +190,27 @@ function installFetchInstrumentation(
   return () => {
     globalThis.fetch = originalFetch;
   };
+}
+
+function injectTraceContext(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  span: SpanHandle,
+): RequestInit | undefined {
+  try {
+    const carrier: Record<string, string> = {};
+    span.injectTraceContext(carrier);
+    if (Object.keys(carrier).length === 0) return init;
+    const headers = new Headers(
+      init?.headers ??
+        (typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined),
+    );
+    for (const [key, value] of Object.entries(carrier)) headers.set(key, value);
+    return { ...init, headers };
+  } catch {
+    // Telemetry must never break the request.
+    return init;
+  }
 }
 
 function describeFetchRequest(input: RequestInfo | URL, init?: RequestInit): { method: string; url: string } {

@@ -26,7 +26,18 @@ type ExpoUpdatesModule = {
 type ReactNativeModule = {
   Platform?: {
     OS?: string;
+    Version?: string | number;
   };
+};
+
+type ExpoDeviceModule = {
+  osName?: string | null;
+  osVersion?: string | null;
+  modelName?: string | null;
+  modelId?: string | null;
+  manufacturer?: string | null;
+  brand?: string | null;
+  isDevice?: boolean;
 };
 
 export type ExpoMetadata = {
@@ -45,6 +56,7 @@ export async function readExpoMetadata(): Promise<ExpoMetadata> {
   const constants = await optionalExpoConstants();
   const updates = await optionalExpoUpdates();
   const reactNative = await optionalReactNative();
+  const device = await optionalExpoDevice();
   const config = constants?.default?.expoConfig;
   const runtimeVersion = runtimeVersionString(config?.runtimeVersion);
   const updateGroupId = updates?.manifest?.metadata?.updateGroup;
@@ -73,9 +85,30 @@ export async function readExpoMetadata(): Promise<ExpoMetadata> {
       "expo.channel": updates?.channel ?? undefined,
       "expo.is_embedded_launch": updates?.isEmbeddedLaunch,
       "device.platform": platform,
+      // Device + OS context (OTel semconv) for "fails only on iOS 17 / Pixel"
+      // style triage. Sourced from expo-device when installed.
+      "os.name": device?.osName ?? undefined,
+      "os.version": device?.osVersion ?? reactNativeOsVersion(reactNative),
+      "device.model.identifier": device?.modelId ?? undefined,
+      "device.model.name": device?.modelName ?? undefined,
+      "device.manufacturer": device?.manufacturer ?? device?.brand ?? undefined,
+      "device.is_physical": device?.isDevice,
       "vcs.ref.head.revision": gitSha,
     },
   };
+}
+
+function reactNativeOsVersion(reactNative: ReactNativeModule | null): string | undefined {
+  const version = reactNative?.Platform?.Version;
+  return version === undefined ? undefined : String(version);
+}
+
+async function optionalExpoDevice(): Promise<ExpoDeviceModule | null> {
+  try {
+    return (await import("expo-device")) as ExpoDeviceModule;
+  } catch {
+    return null;
+  }
 }
 
 async function optionalExpoConstants(): Promise<ExpoConstantsModule | null> {

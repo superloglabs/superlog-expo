@@ -7,6 +7,9 @@ export type SpanHandle = {
   recordException(error: unknown, attributes?: Attributes): void;
   setAttributes(attributes: Attributes): void;
   end(attributes?: Attributes): void;
+  /** Inject W3C `traceparent`/`tracestate` for this span into a header carrier
+   *  so downstream services join the same distributed trace. */
+  injectTraceContext(carrier: Record<string, string>): void;
   otelContext?: unknown;
 };
 

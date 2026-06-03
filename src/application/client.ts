@@ -84,6 +84,9 @@ export class SuperlogClient {
   captureException(error: unknown, attributes: Attributes = {}): void {
     const activeSpan = this.currentSpan();
     const attrs = this.eventAttributes({
+      // Default to a handled exception; the automatic global/unhandled-rejection
+      // handlers pass "exception.handled": false to override this.
+      "exception.handled": true,
       ...errorAttributes(error),
       ...attributes,
     });
@@ -103,14 +106,18 @@ export class SuperlogClient {
     span.end({ "span.status": "error" });
   }
 
-  async trace<T>(name: string, fn: () => T | Promise<T>, options: TraceOptions = {}): Promise<T> {
+  async trace<T>(
+    name: string,
+    fn: (span: SpanHandle) => T | Promise<T>,
+    options: TraceOptions = {},
+  ): Promise<T> {
     const span = this.options.transport.startSpan({
       name,
       attributes: this.eventAttributes(options.attributes ?? {}),
     });
     this.activeSpans.push(span);
     try {
-      const result = await fn();
+      const result = await fn(span);
       span.end({ "span.status": "ok" });
       return result;
     } catch (error) {
@@ -170,7 +177,7 @@ export function superlogTelemetryAttributes(
     "expo.update_group_id": config.expoUpdateGroupId,
     "device.platform": config.platform,
     "superlog.sdk.name": "@superlog/expo",
-    "superlog.sdk.version": "0.1.0",
+    "superlog.sdk.version": "0.1.1",
     ...attributes,
   };
 }

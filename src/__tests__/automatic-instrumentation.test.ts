@@ -86,6 +86,7 @@ test("automatic error instrumentation records React Native global errors", () =>
   assert.equal(transport.exceptions[0]?.error, error);
   assert.equal(transport.exceptions[0]?.attributes["event.name"], "react_native_error");
   assert.equal(transport.exceptions[0]?.attributes["exception.fatal"], true);
+  assert.equal(transport.exceptions[0]?.attributes["exception.handled"], false);
   assert.equal(transport.exceptions[0]?.attributes["session.id"], "ses_auto");
   assert.deepEqual(previousErrors, [error]);
 });
@@ -116,4 +117,27 @@ test("automatic fetch instrumentation creates client spans and logs responses", 
   assert.equal(transport.logs[0]?.message, "fetch");
   assert.equal(transport.logs[0]?.attributes["http.response.status_code"], 201);
   assert.equal(transport.logs[0]?.activeSpan?.id, "span-1");
+});
+
+test("automatic fetch instrumentation injects W3C trace context into the request", async () => {
+  const { client, transport } = makeClient();
+  let capturedInit: RequestInit | undefined;
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    capturedInit = init;
+    return new Response("ok", { status: 200 });
+  }) as typeof fetch;
+  const instrumentation = installAutomaticInstrumentation(client, {
+    console: false,
+    errors: false,
+  });
+
+  try {
+    await fetch("https://api.example.com/messages");
+  } finally {
+    instrumentation.uninstall();
+  }
+
+  const headers = new Headers(capturedInit?.headers);
+  assert.ok(headers.get("traceparent"), "expected a traceparent header on the outgoing request");
+  assert.equal(transport.spans[0]?.injectedCarriers.length, 1);
 });

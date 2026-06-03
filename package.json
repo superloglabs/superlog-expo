@@ -1,6 +1,6 @@
 {
   "name": "@superlog/expo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenTelemetry-based observability SDK for Expo and React Native apps.",
   "type": "module",
   "homepage": "https://github.com/superloglabs/superlog-expo#readme",
@@ -71,6 +71,7 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/core": "^2.7.1",
     "@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
     "@opentelemetry/resources": "^2.7.1",
@@ -80,12 +81,16 @@
   },
   "peerDependencies": {
     "expo-constants": ">=18",
+    "expo-device": ">=8",
     "expo-router": ">=6",
     "expo-updates": ">=28",
     "react": ">=19",
     "react-native": ">=0.81"
   },
   "peerDependenciesMeta": {
+    "expo-device": {
+      "optional": true
+    },
     "expo-router": {
       "optional": true
     },

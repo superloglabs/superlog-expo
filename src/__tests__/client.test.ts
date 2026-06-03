@@ -112,6 +112,14 @@ test("captureException creates an error span when no span is active", () => {
   assert.equal(transport.exceptions[0]?.activeSpan?.id, "span-1");
 });
 
+test("captureException marks exceptions handled by default", () => {
+  const { client, transport } = makeClient();
+
+  client.captureException(new Error("boom"));
+
+  assert.equal(transport.exceptions[0]?.attributes["exception.handled"], true);
+});
+
 test("captureException records on the active trace span", async () => {
   const { client, transport } = makeClient();
   const error = new TypeError("Network request failed");

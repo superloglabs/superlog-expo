@@ -18,15 +18,14 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
+      # Staged publishing needs npm >= 11.15.0; the Node 24 bundled npm may lag.
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      # Prerelease versions (e.g. 0.1.1-staging.0) go to the `staging` dist-tag;
-      # clean versions go to `latest`. Pin to a staging build with
-      # `npm install @superlog/expo@staging`.
-      - name: Publish
-        run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          if [[ "$VERSION" == *-* ]]; then DIST_TAG="staging"; else DIST_TAG="latest"; fi
-          echo "Publishing $VERSION to dist-tag '$DIST_TAG'"
-          npm publish --access public --provenance --tag "$DIST_TAG"
+      # Submit the build to npm's staging area (no 2FA required). It does NOT go
+      # public here — a maintainer reviews and runs `npm stage approve <id>`
+      # (2FA), or approves via npmjs.com. List staged builds: `npm stage list
+      # @superlog/expo`.
+      - name: Stage publish for review
+        run: npm stage publish --access public --provenance

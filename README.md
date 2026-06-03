@@ -158,8 +158,21 @@ try {
 }
 ```
 
-`trace(name, fn)` creates an OTel span. Logs emitted inside the callback are
-attached to the active span context.
+`trace(name, fn)` creates an OTel span and runs `fn(span)` inside its context.
+Logs emitted **synchronously** inside the callback attach to the span
+automatically. After an `await`, React Native has no ambient async context, so
+thread the span explicitly:
+
+```ts
+await trace("chat.send", async (span) => {
+  log("optimistic_append", "info", {}, { span }); // before await: implicit also works
+  await sendMessage();
+  log("reply_received", "info", {}, { span });     // after await: pass { span }
+});
+```
+
+`log(...)` and `captureException(...)` both accept a trailing `{ span }`. Logs
+with no span still carry `session.id` and the current `route.name`.
 
 `captureException(error, attrs)` emits an error log with `exception.type`,
 `exception.message`, and `exception.stacktrace`. If no span is active, it also

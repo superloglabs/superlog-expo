@@ -81,6 +81,15 @@ export class OTelTransport implements TelemetryTransport {
     return new OTelSpanHandle(span);
   }
 
+  withSpan<T>(span: SpanHandle, fn: () => T): T {
+    return context.with(span.otelContext as Context, fn);
+  }
+
+  activeSpan(): SpanHandle | undefined {
+    const span = trace.getSpan(context.active());
+    return span ? new OTelSpanHandle(span) : undefined;
+  }
+
   emitLog(input: LogInput): void {
     const otelContext = input.activeSpan?.otelContext;
     const record = {

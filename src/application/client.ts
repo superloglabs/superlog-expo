@@ -26,9 +26,15 @@ export type TraceOptions = {
   attributes?: Attributes;
 };
 
+export type EmitOptions = {
+  /** Attach this log/exception to a specific span. Pass the span from a
+   *  `trace(name, (span) => ...)` callback to correlate deterministically —
+   *  including across `await`, where ambient context is not tracked in RN. */
+  span?: SpanHandle;
+};
+
 export class SuperlogClient {
   readonly sessionId: string;
-  private activeSpans: SpanHandle[] = [];
   private contextAttributes: Attributes = {};
   private currentRoute: string | null = null;
   private teardownCallbacks: Array<() => void> = [];
@@ -56,12 +62,17 @@ export class SuperlogClient {
       "route.name": route,
       "navigation.previous_route": previousRoute ?? undefined,
     });
-    await this.trace("navigation.route", async () => {
-      this.log("navigation.route", "info", {
-        "route.name": route,
-        "navigation.to": route,
-        "navigation.from": previousRoute ?? undefined,
-      });
+    await this.trace("navigation.route", (span) => {
+      this.log(
+        "navigation.route",
+        "info",
+        {
+          "route.name": route,
+          "navigation.to": route,
+          "navigation.from": previousRoute ?? undefined,
+        },
+        { span },
+      );
     });
   }
 
@@ -72,17 +83,22 @@ export class SuperlogClient {
     });
   }
 
-  log(message: string, severity: Severity = "info", attributes: Attributes = {}): void {
+  log(
+    message: string,
+    severity: Severity = "info",
+    attributes: Attributes = {},
+    options: EmitOptions = {},
+  ): void {
     this.options.transport.emitLog({
       message,
       severity,
       attributes: this.eventAttributes(attributes),
-      activeSpan: this.currentSpan(),
+      activeSpan: options.span ?? this.activeSpan(),
     });
   }
 
-  captureException(error: unknown, attributes: Attributes = {}): void {
-    const activeSpan = this.currentSpan();
+  captureException(error: unknown, attributes: Attributes = {}, options: EmitOptions = {}): void {
+    const activeSpan = options.span ?? this.activeSpan();
     const attrs = this.eventAttributes({
       // Default to a handled exception; the automatic global/unhandled-rejection
       // handlers pass "exception.handled": false to override this.
@@ -115,20 +131,17 @@ export class SuperlogClient {
       name,
       attributes: this.eventAttributes(options.attributes ?? {}),
     });
-    this.activeSpans.push(span);
+    // Run the callback inside the span's context so synchronously-emitted logs
+    // resolve to it via the context manager (no global mutable span stack).
+    // Logs after an `await` should be threaded explicitly via the `span` arg.
     try {
-      const result = await fn(span);
+      const result = await this.options.transport.withSpan(span, () => fn(span));
       span.end({ "span.status": "ok" });
       return result;
     } catch (error) {
       span.recordException(error, this.eventAttributes(errorAttributes(error)));
       span.end({ "span.status": "error" });
       throw error;
-    } finally {
-      const popped = this.activeSpans.pop();
-      if (popped !== span) {
-        this.activeSpans = this.activeSpans.filter((candidate) => candidate !== span);
-      }
     }
   }
 
@@ -145,8 +158,8 @@ export class SuperlogClient {
     await (this.options.transport.shutdown?.() ?? Promise.resolve());
   }
 
-  private currentSpan(): SpanHandle | undefined {
-    return this.activeSpans.at(-1);
+  private activeSpan(): SpanHandle | undefined {
+    return this.options.transport.activeSpan();
   }
 
   private eventAttributes(attributes: Attributes): Record<string, Exclude<Attributes[string], undefined>> {
@@ -177,7 +190,7 @@ export function superlogTelemetryAttributes(
     "expo.update_group_id": config.expoUpdateGroupId,
     "device.platform": config.platform,
     "superlog.sdk.name": "@superlog/expo",
-    "superlog.sdk.version": "0.1.1",
+    "superlog.sdk.version": "0.1.2",
     ...attributes,
   };
 }

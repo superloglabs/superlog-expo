@@ -33,6 +33,11 @@ export type ExceptionInput = {
 
 export type TelemetryTransport = {
   startSpan(input: StartSpanInput): SpanHandle;
+  /** Run `fn` with `span` as the active context, so logs/exceptions emitted
+   *  synchronously inside it resolve to `span` via `activeSpan()`. */
+  withSpan<T>(span: SpanHandle, fn: () => T): T;
+  /** The span active in the current context, if any. */
+  activeSpan(): SpanHandle | undefined;
   emitLog(input: LogInput): void;
   emitException(input: ExceptionInput): void;
   flush?(): Promise<void>;

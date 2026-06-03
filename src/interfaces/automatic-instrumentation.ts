@@ -171,17 +171,19 @@ function installFetchInstrumentation(
       const nextInit = injectTraceContext(input, init, span);
       try {
         const response = await originalFetch(input, nextInit);
+        // Thread the span explicitly: this log runs after `await`, where
+        // ambient context is no longer active in React Native.
         client.log("fetch", "info", {
           ...attributes,
           "http.response.status_code": response.status,
           "http.response.duration_ms": Date.now() - startedAt,
-        });
+        }, { span });
         return response;
       } catch (error) {
         client.captureException(error, {
           ...attributes,
           "http.response.duration_ms": Date.now() - startedAt,
-        });
+        }, { span });
         throw error;
       }
     }, { attributes });

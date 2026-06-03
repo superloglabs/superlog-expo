@@ -81,6 +81,30 @@ test("trace correlates nested logs to the active span", async () => {
   assert.equal(transport.spans[0]?.endAttributes?.["span.status"], "ok");
 });
 
+test("an explicitly passed span correlates a log emitted after an await", async () => {
+  const { client, transport } = makeClient();
+
+  await client.trace("chat.send", async (span) => {
+    await Promise.resolve();
+    client.log("after_await", "info", {}, { span });
+  });
+
+  assert.equal(transport.logs.length, 1);
+  assert.equal(transport.logs[0]?.message, "after_await");
+  assert.equal(transport.logs[0]?.activeSpan?.id, "span-1");
+});
+
+test("an ambient log emitted with no active span carries session + route", async () => {
+  const { client, transport } = makeClient();
+  client.setRoute("/chat");
+
+  client.log("ambient");
+
+  assert.equal(transport.logs[0]?.activeSpan, undefined);
+  assert.equal(transport.logs[0]?.attributes["session.id"], "ses_test");
+  assert.equal(transport.logs[0]?.attributes["route.name"], "/chat");
+});
+
 test("recordNavigation tracks route changes by session", async () => {
   const { client, transport } = makeClient();
 

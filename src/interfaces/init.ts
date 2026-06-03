@@ -104,15 +104,17 @@ export function log(
   message: Parameters<SuperlogClient["log"]>[0],
   severity?: Parameters<SuperlogClient["log"]>[1],
   attributes?: Parameters<SuperlogClient["log"]>[2],
+  options?: Parameters<SuperlogClient["log"]>[3],
 ): void {
-  getSuperlog().log(message, severity, attributes);
+  getSuperlog().log(message, severity, attributes, options);
 }
 
 export function captureException(
   error: Parameters<SuperlogClient["captureException"]>[0],
   attributes?: Parameters<SuperlogClient["captureException"]>[1],
+  options?: Parameters<SuperlogClient["captureException"]>[2],
 ): void {
-  getSuperlog().captureException(error, attributes);
+  getSuperlog().captureException(error, attributes, options);
 }
 
 export function trace<T>(

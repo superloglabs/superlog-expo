@@ -22,6 +22,21 @@ export class FakeTransport implements TelemetryTransport {
   logs: LogInput[] = [];
   exceptions: ExceptionInput[] = [];
   private nextSpanId = 1;
+  private current: SpanHandle | undefined;
+
+  withSpan<T>(span: SpanHandle, fn: () => T): T {
+    const previous = this.current;
+    this.current = span;
+    try {
+      return fn();
+    } finally {
+      this.current = previous;
+    }
+  }
+
+  activeSpan(): SpanHandle | undefined {
+    return this.current;
+  }
 
   startSpan(input: StartSpanInput): SpanHandle {
     const record: FakeSpanRecord = {
